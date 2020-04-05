@@ -2,6 +2,7 @@ from PIL import Image
 import numpy as np
 from excel_painter import paint_qrcode_to_excel
 
+EC_LEVEL = {"11": "L", "10": "M", "01": "Q", "00": "H"}
 align_position_dict = {2: [6, 18],
                        3: [6, 22],
                        4: [6, 26],
@@ -44,9 +45,6 @@ align_position_dict = {2: [6, 18],
 
 
 class QR:
-    POSITION_WIDTH = 6
-    EC_LEVEL = {"11": "L", "10": "M", "01": "Q", "00": "H"}
-
     def __init__(self, src):
         self._img = Image.open(src).convert('RGB')
         self.ec = None
@@ -77,7 +75,7 @@ class QR:
         self.version = (self.width - 21) // 4 + 1
 
     def __get_ec(self):
-        self.ec = self.EC_LEVEL["".join(map(str, self.array[8][:2]))]
+        self.ec = EC_LEVEL["".join(map(str, self.array[8][:2]))]
 
     def __get_mask_pattern(self):
         self.mask = "".join(map(str, self.array[8][2:5]))
@@ -109,11 +107,12 @@ class QR:
 
     def __get_positions(self):
         width = self.width - 1
-        POSITION_WIDTH = self.POSITION_WIDTH + 2
+        p_width = 8
+        gap_width = width - p_width - 1
 
-        left_top = [[0, 0], [POSITION_WIDTH, POSITION_WIDTH]]
-        left_bottom = [[width - POSITION_WIDTH - 1, 0], [width, POSITION_WIDTH]]
-        right_top = [[0, width - POSITION_WIDTH - 1], [POSITION_WIDTH, width]]
+        left_top = [[0, 0], [p_width, p_width]]
+        left_bottom = [[gap_width, 0], [width, p_width]]
+        right_top = [[0, gap_width], [p_width, width]]
         return [left_top, left_bottom, right_top]
 
     def __align_range(self, location):
