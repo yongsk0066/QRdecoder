@@ -3,6 +3,8 @@ import numpy as np
 from excel_painter import paint_qrcode_to_excel
 
 EC_LEVEL = {"11": "L", "10": "M", "01": "Q", "00": "H"}
+MODE_INDICATOR = {"0001": "Numeric Mode", "0010": "Alphanumeric Mode",
+                  "0100": "Byte Mode", "1000": "Kanji Mode", "0111": "ECI Mode"}
 align_position_dict = {2: [6, 18],
                        3: [6, 22],
                        4: [6, 26],
@@ -48,11 +50,13 @@ class QR:
     def __init__(self, src):
         self._img = Image.open(src).convert('RGB')
         self.ec = None
+        self.array = None
         self.mask = None
         self.mask_func = None
         self.mask_array = None
-        self.array = None
+        self.xor_array = None
         self.width = None
+        self.mode = None
         self.__initialize()
 
     def __initialize(self):
@@ -62,6 +66,8 @@ class QR:
         self.__get_ec()
         self.__get_mask_pattern()
         self.__get_mask_array()
+        self.__get_xor_array()
+        # self.__get_mode_indicator()
 
     def __make_nparray(self):
         img_arr = np.asarray(self._img)[:, :, 0]
@@ -108,11 +114,11 @@ class QR:
     def __get_positions(self):
         width = self.width - 1
         p_width = 8
-        gap_width = width - p_width - 1
+        gap_width = width - p_width
 
         left_top = [[0, 0], [p_width, p_width]]
-        left_bottom = [[gap_width, 0], [width, p_width]]
-        right_top = [[0, gap_width], [p_width, width]]
+        left_bottom = [[gap_width + 1, 0], [width, p_width]]
+        right_top = [[0, gap_width + 1], [p_width, width]]
         return [left_top, left_bottom, right_top]
 
     def __align_range(self, location):
@@ -143,7 +149,7 @@ class QR:
     def __is_timing(self, i, j):
         return i == 6 or j == 6
 
-    def __is_mask(self, i, j):
+    def is_mask(self, i, j):
         return self.__is_timing(i, j) or self.__is_position(i, j) or self.__is_align(i, j)
 
     def __get_mask_array(self):
@@ -152,13 +158,143 @@ class QR:
         # print(array[0][0], array[width - 1][width - 1])
         for i in range(0, width):
             for j in range(0, width):
-                if not self.__is_mask(i, j):
+                if not self.is_mask(i, j):
                     array[i][j] = 1 if self.mask_func(i, j) else 0
 
         self.mask_array = array
 
-    def xor_array(self):
-        return np.logical_xor(self.array, self.mask_array)
+    def __get_xor_array(self):
+        vfunc = np.vectorize(lambda x: 1 if x else 0)
+        self.xor_array = vfunc(np.logical_xor(self.array, self.mask_array))
+
+    # def __get_mode_indicator(self):
+    #     xor = self.xor_array
+    #     indicator = f'{"".join(xor[-1][-2:0])}{"".join(xor[-2][-2:0])}'
+    #     self.mode = MODE_INDICATOR[indicator]
 
 
-qrcode = QR("o2o_qrcode.png")
+qrcode = QR("93test.png")
+qrcode2 = QR("o2o_2png.png")
+
+xor = qrcode.xor_array
+
+
+# indicator = f'{xor[-1][-1]}{xor[-1][-2]}{xor[-2][-1]}{xor[-2][-2]}'
+# print(MODE_INDICATOR[indicator])
+# print(qrcode.ec)
+# print(qrcode.version)
+# # paint_qrcode_to_excel(qrcode.array, "version_2_arr")
+# paint_qrcode_to_excel(xor, "version_2_xor")
+#
+# #
+
+
+def generate_matrix(width):
+    l = []
+    count = 0
+    for i in range(0, width):
+        l.append([])
+        for j in range(0, width):
+            l[i].append(count)
+            count += 1
+    return np.asarray(l)
+
+
+def slice_range(width):
+    output = []
+    width = width
+    width_list = list(range(width - 1, -1, -1))
+    width_list.remove(6)
+    i = 0
+    while i < width // 2:
+        index = i * 2
+        output.append(width_list[index:index + 2])
+        i += 1
+    return output
+    # return Output
+
+
+def get_codeword(qr):
+    flag = 1
+    codeword = []
+    width = qr.width
+    array = qr.xor_array
+    x_list = slice_range(width)
+    for x in x_list:
+        if flag == 1:
+            for y in range(width - 1, -1, -1):
+                if not qr.is_mask(y, x[0]):
+                    codeword.append(str(array[y][x[0]]))
+                if not qr.is_mask(y, x[1]):
+                    codeword.append(str(array[y][x[1]]))
+            flag = 0
+        elif flag == 0:
+            for y in range(0, width):
+                if not qr.is_mask(y, x[0]):
+                    codeword.append(str(array[y][x[0]]))
+                if not qr.is_mask(y, x[1]):
+                    codeword.append(str(array[y][x[1]]))
+            flag = 1
+
+    return "".join(codeword)
+
+
+print(qrcode.ec, qrcode.mask)
+result = get_codeword(qrcode)
+print(MODE_INDICATOR[result[:4]])
+print(int(result[4:20], 2))
+
+refine_result = result[20:]
+n = 8
+chunks = [refine_result[i:i + n] for i in range(0, len(refine_result), n)]
+print(" ".join(chunks[1:]))
+data = list(map(lambda x: int(x, 2), chunks))
+#
+# for i in range(0, len(data[1:data[0] + 1])):
+#     if data[1:data[0] + 1][i] != data2[1:data2[0] + 1][i]:
+#         print(i, hex(data[1:data[0] + 1][i]), hex(data2[1:data2[0] + 1][i]))
+#
+# print("\n")
+
+
+# print(data[0], data[1:data[0] + 1], data[data[0] + 1:])
+hex_data = list(map(lambda x: hex(x), data))
+str_data = list(map(lambda x: chr(x), data))
+print("".join(str_data[::]))
+# for i in range(0,25):
+#     print(data[i], hex_data[i])
+# print(data2[0], data2[1:data2[0] + 1], data2[data2[0] + 1:])
+# print(list(map(lambda x: hex(x), data2[1:data2[0] + 1])))
+# def test_func(width=5):
+#     data = range(width - 1, -1, - 1)
+#     Inputt = iter(data)
+#     length_to_split = [2] * (width // 2 + 1)
+#     Output = [list(islice(Inputt, elem)) for elem in length_to_split]
+#
+#     array = generate_matrix(width)
+#     flag = 1
+#     # 1 up 0 down
+#     index = 0
+#
+#     answer = []
+#     # print(Output)
+#     for x in Output:
+#         if len(x) == 1:
+#             break
+#         if flag == 1:
+#             for y in range(width - 1, -1, -1):
+#                 answer.append(array[y][x[0]])
+#                 answer.append(array[y][x[1]])
+#             flag = 0
+#         elif flag == 0:
+#             for y in range(0, width):
+#                 answer.append(array[y][x[0]])
+#                 answer.append(array[y][x[1]])
+#             flag = 1
+#         index += 1
+#     print(answer)
+#     # print(list(range(10,-1,-1)))
+#
+#
+# print(generate_matrix(5))
+# test_func(5)
