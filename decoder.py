@@ -1,6 +1,7 @@
 from PIL import Image
 import numpy as np
 from excel_painter import paint_qrcode_to_excel
+import cv2
 
 EC_LEVEL = {"11": "L", "10": "M", "01": "Q", "00": "H"}
 MODE_INDICATOR = {"0001": "Numeric Mode", "0010": "Alphanumeric Mode",
@@ -111,10 +112,14 @@ class QR:
         else:
             return False
 
-    def __get_positions(self):
+    def __get_positions(self, type="v"):
         width = self.width - 1
         p_width = 8
         gap_width = width - p_width
+        if type != "v":
+            v1 = [[gap_width - 2, 0], [gap_width, 5]]
+            v2 = [[0, gap_width - 2], [5, gap_width]]
+            return [v1, v2]
 
         left_top = [[0, 0], [p_width, p_width]]
         left_bottom = [[gap_width + 1, 0], [width, p_width]]
@@ -152,13 +157,23 @@ class QR:
     def is_mask(self, i, j):
         return self.__is_timing(i, j) or self.__is_position(i, j) or self.__is_align(i, j)
 
+    def is_version_info(self, i, j):
+        position = self.__get_positions(type="s")
+        for area in position:
+            if self.__is_in_area([i, j], area):
+                return True
+        return False
+
+    def is_mask_test(self, i, j):
+        return self.__is_timing(i, j) or self.__is_position(i, j) or self.__is_align(i, j) or self.is_version_info(i, j)
+
     def __get_mask_array(self):
         width = self.width
         array = np.zeros((width, width))
         # print(array[0][0], array[width - 1][width - 1])
         for i in range(0, width):
             for j in range(0, width):
-                if not self.is_mask(i, j):
+                if not self.is_mask_test(i, j):
                     array[i][j] = 1 if self.mask_func(i, j) else 0
 
         self.mask_array = array
@@ -173,8 +188,8 @@ class QR:
     #     self.mode = MODE_INDICATOR[indicator]
 
 
-qrcode = QR("93test.png")
-qrcode2 = QR("o2o_2png.png")
+qrcode2 = QR("93test.png")
+qrcode = QR("o2o_2png.png")
 
 xor = qrcode.xor_array
 
@@ -200,9 +215,11 @@ def generate_matrix(width):
     return np.asarray(l)
 
 
+# paint_qrcode_to_excel(generate_matrix(93), "test_1")
+
+
 def slice_range(width):
     output = []
-    width = width
     width_list = list(range(width - 1, -1, -1))
     width_list.remove(6)
     i = 0
@@ -215,24 +232,28 @@ def slice_range(width):
 
 
 def get_codeword(qr):
-    flag = 1
+    flag = True
     codeword = []
     width = qr.width
     array = qr.xor_array
     x_list = slice_range(width)
     for x in x_list:
-        if flag == 1:
+        # upward
+        if flag:
             for y in range(width - 1, -1, -1):
-                if not qr.is_mask(y, x[0]):
+                if not qr.is_mask_test(y, x[0]):
                     codeword.append(str(array[y][x[0]]))
-                if not qr.is_mask(y, x[1]):
+                if not qr.is_mask_test(y, x[1]):
                     codeword.append(str(array[y][x[1]]))
-            flag = 0
-        elif flag == 0:
+            # turn
+            flag = False
+
+        # downward
+        elif not flag:
             for y in range(0, width):
-                if not qr.is_mask(y, x[0]):
+                if not qr.is_mask_test(y, x[0]):
                     codeword.append(str(array[y][x[0]]))
-                if not qr.is_mask(y, x[1]):
+                if not qr.is_mask_test(y, x[1]):
                     codeword.append(str(array[y][x[1]]))
             flag = 1
 
@@ -242,12 +263,14 @@ def get_codeword(qr):
 print(qrcode.ec, qrcode.mask)
 result = get_codeword(qrcode)
 print(MODE_INDICATOR[result[:4]])
-print(int(result[4:20], 2))
-
-refine_result = result[20:]
+print(result[4:20])
+print(int(result[4:4 + 8*16], 2))
+print(result[4:4 + 8*16])
+qrcode.is_version_info(0, 0)
+refine_result = result
 n = 8
 chunks = [refine_result[i:i + n] for i in range(0, len(refine_result), n)]
-print(" ".join(chunks[1:]))
+print("\n".join(chunks))
 data = list(map(lambda x: int(x, 2), chunks))
 #
 # for i in range(0, len(data[1:data[0] + 1])):
@@ -258,9 +281,39 @@ data = list(map(lambda x: int(x, 2), chunks))
 
 
 # print(data[0], data[1:data[0] + 1], data[data[0] + 1:])
-hex_data = list(map(lambda x: hex(x), data))
-str_data = list(map(lambda x: chr(x), data))
-print("".join(str_data[::]))
+# hex_data = list(map(lambda x: f'{x:02x}', data))
+# str_data = list(map(lambda x: chr(x), data))
+# print(str_data)
+# print(hex_data[:44])
+# print(hex_data[44:88])
+# print(hex_data[88:132])
+# print(hex_data[132:177])
+hex_data = data
+full_list = [hex_data[:44], hex_data[44:88], hex_data[88:132], hex_data[132:177]]
+ll = []
+for i in range(0, 44):
+    ll.append(f'{full_list[0][i]} {full_list[1][i]} {full_list[2][i]} {full_list[3][i]}')
+# bytearray.fromhex(x).decode()
+# str_data = list(map(lambda x: chr(x), ll))
+# print(str_data)
+ls = " ".join(ll).split(" ")
+# str_data = list(map(lambda x: chr(int(x)), ls))
+
+print(ll)
+
+# print(hex_data[177:222])
+# print(hex_data[222:267])
+# print(hex_data[267:312])
+# print(hex_data[312:357])
+# print(hex_data[357:402])
+# print(hex_data[402:447])
+# print(hex_data[447:492])
+# print(hex_data[492:537])
+# print(hex_data[537:582])
+# print(hex_data[582:627])
+
+
+# print(set(hex_data))
 # for i in range(0,25):
 #     print(data[i], hex_data[i])
 # print(data2[0], data2[1:data2[0] + 1], data2[data2[0] + 1:])
