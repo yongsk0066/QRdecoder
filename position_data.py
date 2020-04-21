@@ -1,6 +1,3 @@
-# f = open('ver_align.csv', 'r')
-# file = f.readlines()
-# version = 2
 align_position_dict = {2: [6, 18],
                        3: [6, 22],
                        4: [6, 26],
@@ -40,37 +37,3 @@ align_position_dict = {2: [6, 18],
                        38: [6, 32, 58, 84, 110, 136, 162],
                        39: [6, 26, 54, 82, 110, 138, 166],
                        40: [6, 30, 58, 86, 114, 142, 170]}
-
-# for line in file:
-#     align_position_dict[version] = list(map(lambda x: int(x), line.strip().split(",")))
-#     # print(list(map(lambda x : int(x), line.strip().split(","))))
-#     version += 1
-# print(align_position_dict)
-#
-# start = 6
-# last = lambda x: x - 6
-
-# def get_width(version):
-#     return 20 + (version - 1) * 4
-#
-#
-# def get_align_position(version):
-#     # last(get_width(version))
-#     return [start]
-#
-#
-# for i in range(7, 41):
-#     lst = get_align_position(i)
-#     version_type = i // 7 + 1
-#     delta = (last(get_width(i)) - lst[0]) // version_type
-#     lst_val = start
-#     # print(i//7 + 1)
-#     if version_type != 1:
-#         # print(version_type)
-#         for j in range(0, version_type - 1):
-#             lst.append(lst_val + delta)
-#             lst_val += delta
-#         lst.append(last(get_width(i)))
-#
-#     print(lst)
-#     # print(get_width(i), lst, delta+6)
