@@ -16,3 +16,7 @@ QR CODE Version 19 뜯어보기
 - [x] get codewords
 - [ ] refine codewords
 - [ ] get full data
+
+
+## QR CODE DOCUMENT
+- [ ] print ISO:18004
